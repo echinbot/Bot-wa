@@ -564,4 +564,154 @@ client.on('message', async (msg) => {
         if (pesanLower.startsWith('editlist:')) {
             const bagian = pesan.substring(9).split('|');
             if (bagian.length < 2) return balas(msg, '❌ Format: *editlist: Nama | Isi Baru*\n_Tip: reply foto untuk mengganti gambar._');
-            const nama = bagian[0]
+            const nama = bagian[0].trim().toLowerCase();
+            const isi  = bagian.slice(1).join('|').trim();
+            if (!customList[nama]) return balas(msg, `❌ Produk *${nama}* tidak ditemukan.`);
+
+            // Pertahankan gambar lama kecuali ada foto baru
+            let gambarBase64 = customList[nama]?.gambar ?? null;
+
+            if (msg.hasQuotedMsg) {
+                try {
+                    const quoted = await msg.getQuotedMessage();
+                    if (quoted.type === 'image' && quoted.hasMedia) {
+                        const media = await quoted.downloadMedia();
+                        gambarBase64 = media.data;
+                    }
+                } catch (_) {}
+            } else if (msg.type === 'image' && msg.hasMedia) {
+                try {
+                    const media = await msg.downloadMedia();
+                    gambarBase64 = media.data;
+                } catch (_) {}
+            }
+
+            customList[nama] = { teks: isi, gambar: gambarBase64 };
+            simpanData();
+            return balas(msg, `📝 Produk *${nama}* berhasil diperbarui${gambarBase64 ? ' beserta gambar 🖼️' : ''}.`);
+        }
+
+        // dellist: Nama
+        if (pesanLower.startsWith('dellist:')) {
+            const nama = pesan.substring(8).trim().toLowerCase();
+            if (!nama) return balas(msg, '❌ Masukkan nama produk yang ingin dihapus.');
+            if (!customList[nama]) return balas(msg, `❌ Produk *${nama}* tidak ditemukan.`);
+            delete customList[nama];
+            simpanData();
+            return balas(msg, `🗑️ Produk *${nama}* berhasil dihapus.`);
+        }
+
+        // ── proses ──
+        if (pesanLower === 'proses' && msg.hasQuotedMsg) {
+            let quotedMsg;
+            try { quotedMsg = await msg.getQuotedMessage(); }
+            catch (e) { return balas(msg, '❌ Gagal membaca pesan yang di-reply.'); }
+            if (quotedMsg.type !== 'image') return balas(msg, '❌ Reply harus ke foto *bukti pembayaran*!');
+            const caption    = quotedMsg.body?.trim() || '';
+            const namaProduk = caption || '_(tidak ada caption)_';
+            const pembeliId  = quotedMsg.author ?? quotedMsg.from;
+            let pembeliNama  = pembeliId;
+            try {
+                const kontak = await client.getContactById(pembeliId);
+                pembeliNama  = kontak.pushname || kontak.name || pembeliId;
+            } catch (_) {}
+            const sudahAda = Object.values(db.orders).find(o => o.msgId === quotedMsg.id._serialized);
+            if (sudahAda) return balas(msg, `⚠️ Bukti bayar ini sudah diproses.\nID Order: *${sudahAda.id}*`);
+            const now = new Date();
+            const idOrder = buatIdOrder();
+            db.orders[idOrder] = {
+                id: idOrder, namaProduk, waktuOrder: formatWaktu(now),
+                tanggalOrder: formatTanggal(now), pembeliId, pembeliNama,
+                status: 'Diproses', msgId: quotedMsg.id._serialized,
+            };
+            simpanData();
+            const pesanProses =
+                `✅ *Pembayaran Dikonfirmasi!*\n\n` +
+                `🆔 ID Order  : *${idOrder}*\n` +
+                `📦 Produk    : ${namaProduk}\n` +
+                `📅 Tanggal   : ${formatTanggal(now)}\n` +
+                `🕐 Waktu     : ${formatWaktu(now)} WIB\n` +
+                `👤 Pembeli   : ${pembeliNama}\n` +
+                `⏳ Status    : *Diproses*\n\n` +
+                `_Pesanan sedang kami proses. Harap tunggu ya!_ 🙏`;
+            await balas(msg, pesanProses);
+            await kirimDM(pembeliId, pesanProses);
+            return;
+        }
+
+        // ── done ──
+        if (pesanLower === 'done' && msg.hasQuotedMsg) {
+            let quotedMsg;
+            try { quotedMsg = await msg.getQuotedMessage(); }
+            catch (e) { return balas(msg, '❌ Gagal membaca pesan yang di-reply.'); }
+            const order = Object.values(db.orders).find(o => o.msgId === quotedMsg.id._serialized);
+            if (!order) return balas(msg, `❌ Order tidak ditemukan.\nGunakan *proses* terlebih dahulu.`);
+            if (order.status === 'Selesai') return balas(msg, `⚠️ Order *${order.id}* sudah *Selesai*.`);
+            order.status = 'Selesai';
+            simpanData();
+            const pesanDone =
+                `🎉 *Pesanan Selesai!*\n\n` +
+                `🆔 ID Order  : *${order.id}*\n` +
+                `📦 Produk    : ${order.namaProduk}\n` +
+                `📅 Tanggal   : ${order.tanggalOrder}\n` +
+                `🕐 Waktu     : ${order.waktuOrder} WIB\n` +
+                `👤 Pembeli   : ${order.pembeliNama}\n` +
+                `✅ Status    : *Selesai*\n\n` +
+                `_Terima kasih sudah berbelanja di Genius Store!_ 🛍️`;
+            await balas(msg, pesanDone);
+            await kirimDM(order.pembeliId, pesanDone);
+            return;
+        }
+
+        // .close / .open
+        if (pesanLower === '.close' || pesanLower === '.open') {
+            if (!chat.isGroup) return balas(msg, '❌ Perintah ini hanya untuk Grup.');
+            const tutup = pesanLower === '.close';
+            try {
+                await chat.setMessagesAdminsOnly(tutup);
+                return balas(msg, tutup ? '🔒 Grup ditutup.' : '🔓 Grup dibuka.');
+            } catch (e) {
+                return balas(msg, '❌ Gagal. Pastikan bot adalah Admin!');
+            }
+        }
+
+        // ! – pin pesan
+        if (pesan.startsWith('!')) {
+            const textToPin = pesan.substring(1).trim();
+            try {
+                if (textToPin.length > 0) {
+                    const botMsg = await chat.sendMessage(textToPin);
+                    await botMsg.pin(86400);
+                } else if (msg.hasQuotedMsg) {
+                    const quotedMsg = await msg.getQuotedMessage();
+                    await quotedMsg.pin(86400);
+                } else {
+                    await balas(msg, '❌ Ketik teks setelah ! atau reply pesan yang ingin di-pin.');
+                }
+            } catch (e) { balas(msg, '❌ Gagal pin. Pastikan bot adalah Admin!'); }
+            return;
+        }
+    }
+
+    // ── Cek list otomatis ─────────────────────
+    if (customList[pesanLower]) {
+        return balasProduk(msg, customList[pesanLower]);
+    }
+
+    // ── Fuzzy match – deteksi typo ────────────
+    // Hanya proses pesan pendek (maks 30 karakter) agar tidak false positive
+    if (pesanLower.length <= 30 && pesanLower.length >= 2) {
+        const keys  = Object.keys(customList);
+        const cocok = keys.find(k => hitungJarak(pesanLower, k) <= 2 && k.length >= 3);
+        if (cocok) {
+            const formatNama = cocok.charAt(0).toUpperCase() + cocok.slice(1);
+            return balas(msg, `❓ Apakah maksud kamu *${formatNama}*?\n_Ketik kata kunci dengan benar untuk melihat info produk._`);
+        }
+    }
+});
+
+// ─────────────────────────────────────────────
+//  START
+// ─────────────────────────────────────────────
+client.initialize();
+
