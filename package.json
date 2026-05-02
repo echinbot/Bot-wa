@@ -1,0 +1,11 @@
+{
+  "name": "genius-store-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start":"node index.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js":"^1.26.0"
+  }
+}
