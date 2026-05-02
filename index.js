@@ -1,4 +1,4 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } __ require('whatsapp-web.js');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
