@@ -6,7 +6,7 @@ const { execSync } = require('child_process');
 //  KONFIGURASI
 // ─────────────────────────────────────────────
 const ADMIN_ID  = '174500427595779@lid'; // ID Owner (backup mutlak)
-const DB_PATH   = '/data/database.json';
+const DB_PATH   = './data/database.json';
 const NOMOR_BOT = '6288991973369';       // Nomor WA bot (tanpa + atau 0 di depan)
 
 // ─────────────────────────────────────────────
@@ -14,9 +14,14 @@ const NOMOR_BOT = '6288991973369';       // Nomor WA bot (tanpa + atau 0 di depa
 //  Ganti teks dan path gambar sesuai kebutuhan
 // ─────────────────────────────────────────────
 const SAMBUTAN = {
-    teks: `🎉 Selamat datang di *Echin Store*, @{{nama}}!\n\n` +
-          `Kami jual berbagai produk digital terpercaya.\n` +
-          `Ketik *menu* untuk melihat daftar produk kami.\n\n` +
+    teks: `🎉 Selamat datang di Echin Store*, @{{nama}}!
+
+` +
+          `Kami jual berbagai produk digital terpercaya.
+` +
+          `Ketik *menu* untuk melihat daftar produk kami.
+
+` +
           `_Semoga betah dan happy shopping!_ 🛍️`,
     gambarPath: './welcome.jpg', // Letakkan file gambar di folder yang sama dengan index.js
                                  // Kosongkan ('') jika tidak pakai gambar
@@ -24,61 +29,121 @@ const SAMBUTAN = {
 
 // ─────────────────────────────────────────────
 //  DATABASE
+//  Struktur produk:
+//  {
+//    nama: {
+//      teks: "isi teks",
+//      gambar: "base64string" | null
+//    }
+//  }
 // ─────────────────────────────────────────────
 let db = { produk: {}, orders: {}, orderCounter: 1, adminList: [] };
 let customList;
 
 function muatData() {
     try {
+
+        // kalau file belum ada buat otomatis
         if (!fs.existsSync(DB_PATH)) {
             console.log('📂 database.json belum ada, membuat baru...');
-            db = { produk: {}, orders: {}, orderCounter: 1, adminList: [] };
+            db = {
+                produk: {},
+                orders: {},
+                orderCounter: 1,
+                adminList: []
+            };
             simpanData();
             customList = db.produk;
             return;
         }
 
+        // baca file
         let rawText = fs.readFileSync(DB_PATH, 'utf8').trim();
 
+        // kalau kosong
         if (!rawText) {
             console.log('⚠️ database kosong, reset otomatis...');
-            db = { produk: {}, orders: {}, orderCounter: 1, adminList: [] };
+            db = {
+                produk: {},
+                orders: {},
+                orderCounter: 1,
+                adminList: []
+            };
             simpanData();
             customList = db.produk;
             return;
         }
 
+        // hapus BOM / karakter aneh
         rawText = rawText.replace(/^\uFEFF/, '');
+
         let raw = JSON.parse(rawText);
 
-        if (!raw || typeof raw !== 'object') raw = {};
+        // default struktur
+        if (!raw || typeof raw !== 'object') {
+            raw = {};
+        }
 
+        // kalau format lama:
+        // { netflix:"...", canva:"..." }
         if (!raw.produk) {
             console.log('🔄 Deteksi database format lama, migrasi...');
+
             const produkBaru = {};
-            for (const [k, v] of Object.entries(raw)) {
-                if (k === 'orders' || k === 'orderCounter') continue;
+
+            for (const [k,v] of Object.entries(raw)) {
+
+                // skip field order lama kalau ada
+                if (
+                    k === 'orders' ||
+                    k === 'orderCounter'
+                ) continue;
+
                 if (typeof v === 'string') {
-                    produkBaru[k.toLowerCase()] = { teks: v, gambar: null };
-                } else if (typeof v === 'object' && v) {
-                    produkBaru[k.toLowerCase()] = { teks: v.teks || '', gambar: v.gambar || null };
+                    produkBaru[k.toLowerCase()] = {
+                        teks: v,
+                        gambar: null
+                    };
+                }
+
+                else if (typeof v === 'object' && v) {
+                    produkBaru[k.toLowerCase()] = {
+                        teks: v.teks || '',
+                        gambar: v.gambar || null
+                    };
                 }
             }
+
             db = {
                 produk: produkBaru,
                 orders: raw.orders || {},
                 orderCounter: raw.orderCounter || 1,
                 adminList: raw.adminList || []
             };
-        } else {
+        }
+
+        // format baru
+        else {
+
             const produkFix = {};
-            for (const [k, v] of Object.entries(raw.produk || {})) {
+
+            for (const [k,v] of Object.entries(raw.produk || {})) {
+
                 if (typeof v === 'string') {
-                    produkFix[k.toLowerCase()] = { teks: v, gambar: null };
-                } else {
-                    produkFix[k.toLowerCase()] = { teks: v?.teks || '', gambar: v?.gambar || null };
+                    produkFix[k.toLowerCase()] = {
+                        teks: v,
+                        gambar: null
+                    };
+                }
+
+                else {
+                    produkFix[k.toLowerCase()] = {
+                        teks: v?.teks || '',
+                        gambar: v?.gambar || null
+                    };
                 }
             }
+
             db = {
                 produk: produkFix,
                 orders: raw.orders || {},
@@ -87,16 +152,36 @@ function muatData() {
             };
         }
 
+        // sinkronkan alias
         customList = db.produk;
+
+        // auto repair simpan ulang biar rapih
         simpanData();
 
         console.log('✅ Database loaded');
         console.log('📦 Produk:', Object.keys(customList).length);
-        console.log('📝 List:', Object.keys(customList).join(', '));
+        console.log(
+            '📝 List:',
+            Object.keys(customList).join(', ')
+        );
 
-    } catch (e) {
-        console.error('❌ Gagal membaca database:', e.message);
-        db = { produk: {}, orders: {}, orderCounter: 1, adminList: [] };
+    }
+
+    catch(e){
+
+        console.error(
+            '❌ Gagal membaca database:',
+            e.message
+        );
+
+        // fallback biar bot gak crash
+        db = {
+            produk:{},
+            orders:{},
+            orderCounter:1,
+            adminList:[]
+        };
+
         customList = db.produk;
     }
 }
@@ -141,74 +226,95 @@ function formatTanggal(date = new Date()) {
 }
 
 // ─────────────────────────────────────────────
-//  HAPUS HANYA LOCK FILE (BUKAN SESSION)
-//  Session dipertahankan agar tidak perlu pairing ulang saat redeploy
+//  HAPUS SESI & LOCK FILE (sebelum start)
 // ─────────────────────────────────────────────
 try {
+    // JANGAN hapus session biar pairing sekali saja
     execSync(
-        'find /data -name "SingletonLock" -o -name "SingletonCookie" -o -name "SingletonSocket" -o -name "lockfile" | xargs rm -f 2>/dev/null'
+      'find ./data -name "SingletonLock" -o -name "SingletonCookie" -o -name "SingletonSocket" -o -name "lockfile" | xargs rm -f 2>/dev/null');
     );
-    console.log('🧹 Lock file dibersihkan (session dipertahankan).');
-} catch (_) {}
 
+    console.log('🧹 Lock file dibersihkan.');
+} catch (_) {}
 // ─────────────────────────────────────────────
 //  CLIENT
 // ─────────────────────────────────────────────
 const client = new Client({
 
     authStrategy: new LocalAuth({
-        dataPath: '/data'
+        dataPath:'./data'
     }),
 
-    webVersionCache: {
-        type: 'remote',
+    webVersionCache:{
+        type:'remote',
         remotePath:
-            'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
     },
 
-    puppeteer: {
+    puppeteer:{
         executablePath:
             process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: [
+
+        args:[
             '--no-sandbox',
             '--disable-setuid-sandbox'
         ]
     }
 });
-
 // ─────────────────────────────────────────────
-//  QR / PAIRING CODE
-//  Hanya muncul jika session belum ada (pertama kali / session terhapus)
+//  QR CODE
 // ─────────────────────────────────────────────
 let pairingShown = false;
 
-client.on('qr', async () => {
-    if (pairingShown) return;
+client.on('qr', async ()=>{
+
+    if(pairingShown) return;
     pairingShown = true;
 
-    try {
+    try{
+
         console.log('🔗 Generating Pairing Code...');
-        const code = await client.requestPairingCode(NOMOR_BOT, true);
+
+        const code = await client.requestPairingCode(
+            NOMOR_BOT,
+            true
+        );
+
         console.log('\n======================');
         console.log('PAIRING CODE:');
         console.log(code);
         console.log('======================\n');
-        console.log('WhatsApp > Perangkat Tertaut > Tautkan dengan nomor telepon');
-    } catch (err) {
-        console.error('❌ Pairing gagal:', err.message);
+
+        console.log(
+'WhatsApp > Perangkat Tertaut > Tautkan dengan nomor telepon'
+        );
+
+    }catch(err){
+
+        console.error(
+'❌ Pairing gagal:',
+err.message
+        );
     }
+
 });
 
-client.on('ready',        ()    => console.log('✅ Bot Echin Store Aktif!'));
-client.on('auth_failure', (msg) => console.error('❌ Auth gagal:', msg));
-client.on('disconnected', async (reason) => {
-    console.warn('⚠️ Bot terputus:', reason);
-    try {
+client.on('ready',        ()       => console.log('✅ Bot Echin Store Aktif!'));
+client.on('auth_failure', (msg)    => console.error('❌ Auth gagal:', msg));
+client.on('disconnected', async (reason)=>{
+
+    console.warn('⚠️ Bot terputus:',reason);
+
+    try{
         console.log('♻️ reconnect...');
         await client.initialize();
-    } catch (e) {
-        console.error('Reconnect gagal:', e.message);
+    }catch(e){
+        console.error(
+'Reconnect gagal:',
+e.message
+        );
     }
+
 });
 
 // ─────────────────────────────────────────────
@@ -223,6 +329,7 @@ client.on('group_join', async (notif) => {
         const mention    = [contact.id];
         const teks       = SAMBUTAN.teks.replace('{{nama}}', namaMember);
 
+        // Kirim dengan gambar jika tersedia
         if (SAMBUTAN.gambarPath && fs.existsSync(SAMBUTAN.gambarPath)) {
             const media = MessageMedia.fromFilePath(SAMBUTAN.gambarPath);
             await chat.sendMessage(media, { caption: teks, mentions: mention });
@@ -239,8 +346,11 @@ client.on('group_join', async (notif) => {
 // ─────────────────────────────────────────────
 async function cekAdmin(msg, chat) {
     const authorId = msg.author ?? msg.from;
+    // Owner mutlak
     if (authorId === ADMIN_ID) return true;
+    // Admin yang didaftarkan via perintah "admin: @tag"
     if (db.adminList && db.adminList.includes(authorId)) return true;
+    // Admin grup WhatsApp
     if (chat.isGroup) {
         const user = chat.participants.find(p => p.id._serialized === authorId);
         return !!(user && (user.isAdmin || user.isSuperAdmin));
@@ -269,6 +379,7 @@ async function balasProduk(msg, produk) {
         }
     } catch (e) {
         console.error('⚠️  Gagal kirim produk:', e.message);
+        // Fallback ke teks saja
         try { await msg.reply(produk.teks); } catch (_) {}
     }
 }
@@ -282,10 +393,11 @@ async function kirimDM(pembeliId, teks) {
 }
 
 // ─────────────────────────────────────────────
-//  HELPER – hitung jarak Levenshtein (fuzzy match)
+//  HELPER – hitung jarak Levenshtein (untuk fuzzy match)
 // ─────────────────────────────────────────────
 function hitungJarak(a, b) {
     const m = a.length, n = b.length;
+    // Jika panjang beda terlalu jauh, langsung skip
     if (Math.abs(m - n) > 3) return 99;
     const dp = Array.from({ length: m + 1 }, (_, i) =>
         Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
@@ -332,8 +444,8 @@ client.on('message', async (msg) => {
             `• Hapus:  \`deladmin: @tag\`\n` +
             `• List:   \`listadmin\`\n\n` +
             `*🛒 Order (reply foto bukti bayar):*\n` +
-            `• \`proses\` → buat ID order & kirim invoice ke DM pembeli\n` +
-            `• \`done\`   → tandai selesai & kirim konfirmasi ke DM pembeli\n\n` +
+            `• \`proses\` → buat ID order & tandai Diproses\n` +
+            `• \`done\`   → tandai order Selesai\n\n` +
             `*📋 Riwayat (Admin):*\n` +
             `• \`riwayat\`           → semua order\n` +
             `• \`riwayat: diproses\` → filter Diproses\n` +
@@ -343,7 +455,7 @@ client.on('message', async (msg) => {
             `• \`cekorder: ES001\`  → detail order\n` +
             `• \`riwayat saya\`     → riwayat pembeli\n` +
             `• \`.close\` / \`.open\` → buka/tutup grup\n` +
-            `• \`!\`                → pin pesan`
+`• \`!\`                → pin pesan`
         );
     }
 
@@ -354,6 +466,7 @@ client.on('message', async (msg) => {
         if (keys.length > 0) {
             menuTeks += `*List Produk:*\n`;
             keys.forEach(k => {
+                
                 menuTeks += `- ${k.charAt(0).toUpperCase() + k.slice(1)}\n`;
             });
         } else {
@@ -429,6 +542,7 @@ client.on('message', async (msg) => {
 
         // ── admin: @tag (tambah admin bot) ──
         if (pesanLower.startsWith('admin:')) {
+            // Hanya owner mutlak atau admin grup yang bisa mengelola admin bot
             const authorId = msg.author ?? msg.from;
             const isOwner  = authorId === ADMIN_ID;
             let isGrupAdmin = false;
@@ -489,8 +603,8 @@ client.on('message', async (msg) => {
                 return balas(msg, '❌ Tag/mention member yang ingin dihapus dari Admin Bot.\nContoh: *deladmin: @nama*');
 
             if (!db.adminList) db.adminList = [];
-            const dihapus  = [];
-            const tidakAda = [];
+            const dihapus    = [];
+            const tidakAda   = [];
 
             for (const id of mentionedIds) {
                 const idStr = id._serialized ?? id;
@@ -539,7 +653,8 @@ client.on('message', async (msg) => {
             );
         }
 
-        // ── addlist: Nama | Isi ──
+        // addlist: Nama | Isi
+        // Bisa reply foto untuk menyertakan gambar
         if (pesanLower.startsWith('addlist:')) {
             const bagian = pesan.substring(8).split('|');
             if (bagian.length < 2) return balas(msg, '❌ Format: *addlist: Nama | Isi*\n_Tip: reply foto dulu untuk tambah gambar._');
@@ -548,15 +663,19 @@ client.on('message', async (msg) => {
             if (!nama) return balas(msg, '❌ Nama produk tidak boleh kosong.');
 
             let gambarBase64 = null;
+
+            // Cek apakah admin reply foto
             if (msg.hasQuotedMsg) {
                 try {
                     const quoted = await msg.getQuotedMessage();
                     if (quoted.type === 'image' && quoted.hasMedia) {
                         const media = await quoted.downloadMedia();
-                        gambarBase64 = media.data;
+                        gambarBase64 = media.data; // sudah base64
                     }
                 } catch (_) {}
-            } else if (msg.type === 'image' && msg.hasMedia) {
+            }
+            // Cek apakah pesan itu sendiri adalah foto dengan caption addlist
+            else if (msg.type === 'image' && msg.hasMedia) {
                 try {
                     const media = await msg.downloadMedia();
                     gambarBase64 = media.data;
@@ -568,7 +687,8 @@ client.on('message', async (msg) => {
             return balas(msg, `✅ Produk *${nama}* berhasil ditambahkan${gambarBase64 ? ' beserta gambar 🖼️' : ''}.`);
         }
 
-        // ── editlist: Nama | Isi Baru ──
+        // editlist: Nama | Isi Baru
+        // Bisa reply foto untuk mengganti/menambah gambar
         if (pesanLower.startsWith('editlist:')) {
             const bagian = pesan.substring(9).split('|');
             if (bagian.length < 2) return balas(msg, '❌ Format: *editlist: Nama | Isi Baru*\n_Tip: reply foto untuk mengganti gambar._');
@@ -576,7 +696,9 @@ client.on('message', async (msg) => {
             const isi  = bagian.slice(1).join('|').trim();
             if (!customList[nama]) return balas(msg, `❌ Produk *${nama}* tidak ditemukan.`);
 
+            // Pertahankan gambar lama kecuali ada foto baru
             let gambarBase64 = customList[nama]?.gambar ?? null;
+
             if (msg.hasQuotedMsg) {
                 try {
                     const quoted = await msg.getQuotedMessage();
@@ -597,7 +719,7 @@ client.on('message', async (msg) => {
             return balas(msg, `📝 Produk *${nama}* berhasil diperbarui${gambarBase64 ? ' beserta gambar 🖼️' : ''}.`);
         }
 
-        // ── dellist: Nama ──
+        // dellist: Nama
         if (pesanLower.startsWith('dellist:')) {
             const nama = pesan.substring(8).trim().toLowerCase();
             if (!nama) return balas(msg, '❌ Masukkan nama produk yang ingin dihapus.');
@@ -607,45 +729,31 @@ client.on('message', async (msg) => {
             return balas(msg, `🗑️ Produk *${nama}* berhasil dihapus.`);
         }
 
-        // ── proses (reply foto bukti bayar) ──
-        // Invoice HANYA dikirim ke DM pembeli, tidak ada notif di grup
+        // ── proses ──
         if (pesanLower === 'proses' && msg.hasQuotedMsg) {
             let quotedMsg;
             try { quotedMsg = await msg.getQuotedMessage(); }
             catch (e) { return balas(msg, '❌ Gagal membaca pesan yang di-reply.'); }
-
             if (quotedMsg.type !== 'image') return balas(msg, '❌ Reply harus ke foto *bukti pembayaran*!');
-
             const caption    = quotedMsg.body?.trim() || '';
             const namaProduk = caption || '_(tidak ada caption)_';
             const pembeliId  = quotedMsg.author ?? quotedMsg.from;
-
-            let pembeliNama = pembeliId;
+            let pembeliNama  = pembeliId;
             try {
                 const kontak = await client.getContactById(pembeliId);
                 pembeliNama  = kontak.pushname || kontak.name || pembeliId;
             } catch (_) {}
-
             const sudahAda = Object.values(db.orders).find(o => o.msgId === quotedMsg.id._serialized);
             if (sudahAda) return balas(msg, `⚠️ Bukti bayar ini sudah diproses.\nID Order: *${sudahAda.id}*`);
-
-            const now     = new Date();
+            const now = new Date();
             const idOrder = buatIdOrder();
-
             db.orders[idOrder] = {
-                id: idOrder,
-                namaProduk,
-                waktuOrder: formatWaktu(now),
-                tanggalOrder: formatTanggal(now),
-                pembeliId,
-                pembeliNama,
-                status: 'Diproses',
-                msgId: quotedMsg.id._serialized,
+                id: idOrder, namaProduk, waktuOrder: formatWaktu(now),
+                tanggalOrder: formatTanggal(now), pembeliId, pembeliNama,
+                status: 'Diproses', msgId: quotedMsg.id._serialized,
             };
             simpanData();
-
-            // Invoice dikirim ke DM pembeli saja
-            await kirimDM(pembeliId,
+            const pesanProses =
                 `✅ *Pembayaran Dikonfirmasi!*\n\n` +
                 `🆔 ID Order  : *${idOrder}*\n` +
                 `📦 Produk    : ${namaProduk}\n` +
@@ -653,29 +761,23 @@ client.on('message', async (msg) => {
                 `🕐 Waktu     : ${formatWaktu(now)} WIB\n` +
                 `👤 Pembeli   : ${pembeliNama}\n` +
                 `⏳ Status    : *Diproses*\n\n` +
-                `_Pesanan sedang kami proses. Harap tunggu ya!_ 🙏`
-            );
-
-            // Konfirmasi singkat ke admin (di chat mana pun perintah diketik)
-            return balas(msg, `✅ Order *${idOrder}* dibuat. Invoice sudah dikirim ke DM pembeli.`);
+                `_Pesanan sedang kami proses. Harap tunggu ya!_ 🙏`;
+            await msg.react('✅');
+            await kirimDM(pembeliId, pesanProses);
+            return;
         }
 
-        // ── done (reply foto bukti bayar) ──
-        // Konfirmasi selesai HANYA dikirim ke DM pembeli, tidak ada notif di grup
+        // ── done ──
         if (pesanLower === 'done' && msg.hasQuotedMsg) {
             let quotedMsg;
             try { quotedMsg = await msg.getQuotedMessage(); }
             catch (e) { return balas(msg, '❌ Gagal membaca pesan yang di-reply.'); }
-
             const order = Object.values(db.orders).find(o => o.msgId === quotedMsg.id._serialized);
             if (!order) return balas(msg, `❌ Order tidak ditemukan.\nGunakan *proses* terlebih dahulu.`);
             if (order.status === 'Selesai') return balas(msg, `⚠️ Order *${order.id}* sudah *Selesai*.`);
-
             order.status = 'Selesai';
             simpanData();
-
-            // Konfirmasi dikirim ke DM pembeli saja
-            await kirimDM(order.pembeliId,
+            const pesanDone =
                 `🎉 *Pesanan Selesai!*\n\n` +
                 `🆔 ID Order  : *${order.id}*\n` +
                 `📦 Produk    : ${order.namaProduk}\n` +
@@ -683,14 +785,13 @@ client.on('message', async (msg) => {
                 `🕐 Waktu     : ${order.waktuOrder} WIB\n` +
                 `👤 Pembeli   : ${order.pembeliNama}\n` +
                 `✅ Status    : *Selesai*\n\n` +
-                `_Terima kasih sudah berbelanja di Echin Store!_ 🛍️`
-            );
-
-            // Konfirmasi singkat ke admin saja
-            return balas(msg, `✅ Order *${order.id}* ditandai *Selesai*. Konfirmasi sudah dikirim ke DM pembeli.`);
+                `_Terima kasih sudah berbelanja di Echin Store!_ 🛍️`;
+            await msg.react('🎉');
+            await kirimDM(order.pembeliId, pesanDone);
+            return;
         }
 
-        // ── .close / .open ──
+        // .close / .open
         if (pesanLower === '.close' || pesanLower === '.open') {
             if (!chat.isGroup) return balas(msg, '❌ Perintah ini hanya untuk Grup.');
             const tutup = pesanLower === '.close';
@@ -702,7 +803,7 @@ client.on('message', async (msg) => {
             }
         }
 
-        // ── ! – pin pesan ──
+        // ! – pin pesan
         if (pesan.startsWith('!')) {
             const textToPin = pesan.substring(1).trim();
             try {
@@ -726,6 +827,7 @@ client.on('message', async (msg) => {
     }
 
     // ── Fuzzy match – deteksi typo ────────────
+    // Hanya proses pesan pendek (maks 30 karakter) agar tidak false positive
     if (pesanLower.length <= 30 && pesanLower.length >= 2) {
         const keys  = Object.keys(customList);
         const cocok = keys.find(k => hitungJarak(pesanLower, k) <= 2 && k.length >= 3);
