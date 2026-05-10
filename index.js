@@ -1,4 +1,4 @@
-const { Client, LocalAuth, MessageMedia } __ require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
@@ -7,14 +7,14 @@ const { execSync } = require('child_process');
 // ─────────────────────────────────────────────
 const ADMIN_ID  = '174500427595779@lid'; // ID Owner (backup mutlak)
 const DB_PATH   = '/data/database.json';
-const NOMOR_BOT = '6288991973369';       // Nomor WA bot (tanpa + atau 0 di depan)
+const NOMOR_BOT = '6285875121429';       // Nomor WA bot (tanpa + atau 0 di depan)
 
 // ─────────────────────────────────────────────
 //  KONFIGURASI SAMBUTAN
 //  Ganti teks dan path gambar sesuai kebutuhan
 // ─────────────────────────────────────────────
 const SAMBUTAN = {
-    teks: `🎉 Selamat datang di *Genius Store*, @{{nama}}!
+    teks: `🎉 Selamat datang di Echin Store*, @{{nama}}!
 
 ` +
           `Kami jual berbagai produk digital terpercaya.
@@ -198,7 +198,7 @@ muatData();
 // ─────────────────────────────────────────────
 function buatIdOrder() {
     const nomor = String(db.orderCounter).padStart(3, '0');
-    const id    = `GS${nomor}`;
+    const id    = `ES${nomor}`;
     db.orderCounter++;
     simpanData();
     return id;
@@ -294,7 +294,7 @@ err.message
 
 });
 
-client.on('ready',        ()       => console.log('✅ Bot Genius Store Aktif!'));
+client.on('ready',        ()       => console.log('✅ Bot Echin Store Aktif!'));
 client.on('auth_failure', (msg)    => console.error('❌ Auth gagal:', msg));
 client.on('disconnected', async (reason)=>{
 
@@ -447,7 +447,7 @@ client.on('message', async (msg) => {
     // ── menu ──────────────────────────────────
     if (pesanLower === 'menu') {
         const keys = Object.keys(customList).sort();
-        let menuTeks = `𝗐𝖾𝗅𝖼𝗈𝗆𝖾 to *Genius Store*, Ketik list berikut untuk keterangan lebih lanjut\n\n`;
+        let menuTeks = `𝗐𝖾𝗅𝖼𝗈𝗆𝖾 to *Echin Store*, Ketik list berikut untuk keterangan lebih lanjut\n\n`;
         if (keys.length > 0) {
             menuTeks += `*List Produk:*\n`;
             keys.forEach(k => {
