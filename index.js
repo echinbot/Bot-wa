@@ -37,7 +37,7 @@ const SAMBUTAN = {
 //    }
 //  }
 // ─────────────────────────────────────────────
-let db = { produk: {}, orders: {}, orderCounter: 1 };
+let db = { produk: {}, orders: {}, orderCounter: 1, adminList: [] };
 let customList;
 
 function muatData() {
@@ -49,7 +49,8 @@ function muatData() {
             db = {
                 produk: {},
                 orders: {},
-                orderCounter: 1
+                orderCounter: 1,
+                adminList: []
             };
             simpanData();
             customList = db.produk;
@@ -65,7 +66,8 @@ function muatData() {
             db = {
                 produk: {},
                 orders: {},
-                orderCounter: 1
+                orderCounter: 1,
+                adminList: []
             };
             simpanData();
             customList = db.produk;
@@ -115,7 +117,8 @@ function muatData() {
             db = {
                 produk: produkBaru,
                 orders: raw.orders || {},
-                orderCounter: raw.orderCounter || 1
+                orderCounter: raw.orderCounter || 1,
+                adminList: raw.adminList || []
             };
         }
 
@@ -144,7 +147,8 @@ function muatData() {
             db = {
                 produk: produkFix,
                 orders: raw.orders || {},
-                orderCounter: raw.orderCounter || 1
+                orderCounter: raw.orderCounter || 1,
+                adminList: raw.adminList || []
             };
         }
 
@@ -174,7 +178,8 @@ function muatData() {
         db = {
             produk:{},
             orders:{},
-            orderCounter:1
+            orderCounter:1,
+            adminList:[]
         };
 
         customList = db.produk;
@@ -340,11 +345,17 @@ client.on('group_join', async (notif) => {
 //  HELPER – cek admin
 // ─────────────────────────────────────────────
 async function cekAdmin(msg, chat) {
-    if (!chat.isGroup) return msg.from === ADMIN_ID;
     const authorId = msg.author ?? msg.from;
+    // Owner mutlak
     if (authorId === ADMIN_ID) return true;
-    const user = chat.participants.find(p => p.id._serialized === authorId);
-    return !!(user && (user.isAdmin || user.isSuperAdmin));
+    // Admin yang didaftarkan via perintah "admin: @tag"
+    if (db.adminList && db.adminList.includes(authorId)) return true;
+    // Admin grup WhatsApp
+    if (chat.isGroup) {
+        const user = chat.participants.find(p => p.id._serialized === authorId);
+        return !!(user && (user.isAdmin || user.isSuperAdmin));
+    }
+    return false;
 }
 
 // ─────────────────────────────────────────────
@@ -428,6 +439,10 @@ client.on('message', async (msg) => {
             `*🖼️ Produk dengan gambar (reply foto):*\n` +
             `• Tambah: reply foto → \`addlist: Nama | Isi\`\n` +
             `• Edit:   reply foto → \`editlist: Nama | Isi Baru\`\n\n` +
+            `*👤 Kelola Admin Bot:*\n` +
+            `• Tambah: \`admin: @tag\` _(reply/tag member)_\n` +
+            `• Hapus:  \`deladmin: @tag\`\n` +
+            `• List:   \`listadmin\`\n\n` +
             `*🛒 Order (reply foto bukti bayar):*\n` +
             `• \`proses\` → buat ID order & tandai Diproses\n` +
             `• \`done\`   → tandai order Selesai\n\n` +
@@ -524,6 +539,119 @@ client.on('message', async (msg) => {
 
     // ── Perintah Admin ────────────────────────
     if (isAdmin) {
+
+        // ── admin: @tag (tambah admin bot) ──
+        if (pesanLower.startsWith('admin:')) {
+            // Hanya owner mutlak atau admin grup yang bisa mengelola admin bot
+            const authorId = msg.author ?? msg.from;
+            const isOwner  = authorId === ADMIN_ID;
+            let isGrupAdmin = false;
+            if (chat.isGroup) {
+                const user = chat.participants.find(p => p.id._serialized === authorId);
+                isGrupAdmin = !!(user && (user.isAdmin || user.isSuperAdmin));
+            }
+            if (!isOwner && !isGrupAdmin) return balas(msg, '❌ Hanya Owner atau Admin Grup yang bisa menambah Admin Bot!');
+
+            const mentionedIds = msg.mentionedIds;
+            if (!mentionedIds || mentionedIds.length === 0)
+                return balas(msg, '❌ Tag/mention member yang ingin dijadikan Admin Bot.\nContoh: *admin: @nama*');
+
+            if (!db.adminList) db.adminList = [];
+            const ditambahkan = [];
+            const sudahAda    = [];
+
+            for (const id of mentionedIds) {
+                const idStr = id._serialized ?? id;
+                if (db.adminList.includes(idStr)) {
+                    sudahAda.push(idStr);
+                } else {
+                    db.adminList.push(idStr);
+                    ditambahkan.push(idStr);
+                }
+            }
+            simpanData();
+
+            let balasanTeks = '';
+            if (ditambahkan.length > 0) {
+                const namaList = await Promise.all(ditambahkan.map(async (idStr) => {
+                    try {
+                        const kontak = await client.getContactById(idStr);
+                        return kontak.pushname || kontak.name || idStr;
+                    } catch (_) { return idStr; }
+                }));
+                balasanTeks += `✅ *${namaList.join(', ')}* berhasil didaftarkan sebagai Admin Bot.\n`;
+            }
+            if (sudahAda.length > 0) {
+                balasanTeks += `⚠️ Beberapa member sudah terdaftar sebagai Admin Bot.`;
+            }
+            return balas(msg, balasanTeks.trim());
+        }
+
+        // ── deladmin: @tag (hapus admin bot) ──
+        if (pesanLower.startsWith('deladmin:')) {
+            const authorId = msg.author ?? msg.from;
+            const isOwner  = authorId === ADMIN_ID;
+            let isGrupAdmin = false;
+            if (chat.isGroup) {
+                const user = chat.participants.find(p => p.id._serialized === authorId);
+                isGrupAdmin = !!(user && (user.isAdmin || user.isSuperAdmin));
+            }
+            if (!isOwner && !isGrupAdmin) return balas(msg, '❌ Hanya Owner atau Admin Grup yang bisa menghapus Admin Bot!');
+
+            const mentionedIds = msg.mentionedIds;
+            if (!mentionedIds || mentionedIds.length === 0)
+                return balas(msg, '❌ Tag/mention member yang ingin dihapus dari Admin Bot.\nContoh: *deladmin: @nama*');
+
+            if (!db.adminList) db.adminList = [];
+            const dihapus    = [];
+            const tidakAda   = [];
+
+            for (const id of mentionedIds) {
+                const idStr = id._serialized ?? id;
+                const idx   = db.adminList.indexOf(idStr);
+                if (idx !== -1) {
+                    db.adminList.splice(idx, 1);
+                    dihapus.push(idStr);
+                } else {
+                    tidakAda.push(idStr);
+                }
+            }
+            simpanData();
+
+            let balasanTeks = '';
+            if (dihapus.length > 0) {
+                const namaList = await Promise.all(dihapus.map(async (idStr) => {
+                    try {
+                        const kontak = await client.getContactById(idStr);
+                        return kontak.pushname || kontak.name || idStr;
+                    } catch (_) { return idStr; }
+                }));
+                balasanTeks += `🗑️ *${namaList.join(', ')}* telah dihapus dari Admin Bot.\n`;
+            }
+            if (tidakAda.length > 0) {
+                balasanTeks += `⚠️ Beberapa member tidak terdaftar sebagai Admin Bot.`;
+            }
+            return balas(msg, balasanTeks.trim());
+        }
+
+        // ── listadmin ──
+        if (pesanLower === 'listadmin') {
+            if (!db.adminList || db.adminList.length === 0)
+                return balas(msg, `📋 *Daftar Admin Bot*\n\n_Belum ada Admin Bot yang terdaftar._\n\nGunakan: *admin: @tag*`);
+
+            const namaList = await Promise.all(db.adminList.map(async (idStr, i) => {
+                try {
+                    const kontak = await client.getContactById(idStr);
+                    const nama   = kontak.pushname || kontak.name || idStr;
+                    return `${i + 1}. ${nama}`;
+                } catch (_) { return `${i + 1}. ${idStr}`; }
+            }));
+            return balas(msg,
+                `📋 *Daftar Admin Bot* (${db.adminList.length} orang)\n\n` +
+                namaList.join('\n') +
+                `\n\n_Tambah: *admin: @tag* | Hapus: *deladmin: @tag*_`
+            );
+        }
 
         // addlist: Nama | Isi
         // Bisa reply foto untuk menyertakan gambar
