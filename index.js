@@ -305,8 +305,13 @@ client.on('disconnected', async (reason)=>{
 
     console.warn('⚠️ Bot terputus:',reason);
 
+    // Tunggu sebentar sebelum reconnect
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     try{
         console.log('♻️ reconnect...');
+        // destroy dulu baru initialize ulang agar tidak conflict
+        await client.destroy().catch(()=>{});
         await client.initialize();
     }catch(e){
         console.error(
@@ -762,8 +767,7 @@ client.on('message', async (msg) => {
                 `👤 Pembeli   : ${pembeliNama}\n` +
                 `⏳ Status    : *Diproses*\n\n` +
                 `_Pesanan sedang kami proses. Harap tunggu ya!_ 🙏`;
-            // Notif singkat ke admin di chat (grup/pribadi), detail lengkap ke DM pembeli
-            await balas(msg, `✅ Order *${idOrder}* berhasil dibuat.\n📨 Detail sudah dikirim ke chat pribadi pembeli.`);
+            // Hanya kirim detail ke DM pembeli, tanpa balas di grup
             await kirimDM(pembeliId, pesanProses);
             return;
         }
@@ -787,8 +791,7 @@ client.on('message', async (msg) => {
                 `👤 Pembeli   : ${order.pembeliNama}\n` +
                 `✅ Status    : *Selesai*\n\n` +
                 `_Terima kasih sudah berbelanja di Echin Store!_ 🛍️`;
-            // Notif singkat ke admin di chat, detail lengkap ke DM pembeli
-            await balas(msg, `✅ Order *${order.id}* ditandai *Selesai*.\n📨 Konfirmasi sudah dikirim ke chat pribadi pembeli.`);
+            // Hanya kirim detail ke DM pembeli, tanpa balas di grup
             await kirimDM(order.pembeliId, pesanDone);
             return;
         }
