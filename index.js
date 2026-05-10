@@ -7,7 +7,7 @@ const { execSync } = require('child_process');
 // ─────────────────────────────────────────────
 const ADMIN_ID  = '174500427595779@lid'; // ID Owner (backup mutlak)
 const DB_PATH   = '/data/database.json';
-const NOMOR_BOT = '6285875121429';       // Nomor WA bot (tanpa + atau 0 di depan)
+const NOMOR_BOT = '6288991973369';       // Nomor WA bot (tanpa + atau 0 di depan)
 
 // ─────────────────────────────────────────────
 //  KONFIGURASI SAMBUTAN
