@@ -6,8 +6,8 @@ const { execSync } = require('child_process');
 //  KONFIGURASI
 // ─────────────────────────────────────────────
 const ADMIN_ID  = '174500427595779@lid'; // ID Owner (backup mutlak)
-const DB_PATH   = './data/database.json';
-const NOMOR_BOT = '6288991973369';       // Nomor WA bot (tanpa + atau 0 di depan)
+const DB_PATH   = '/data/database.json';
+const NOMOR_BOT = '6285875121429';       // Nomor WA bot (tanpa + atau 0 di depan)
 
 // ─────────────────────────────────────────────
 //  KONFIGURASI SAMBUTAN
@@ -231,7 +231,7 @@ function formatTanggal(date = new Date()) {
 try {
     // JANGAN hapus session biar pairing sekali saja
     execSync(
-      'find ./data -name "SingletonLock" -o -name "SingletonCookie" -o -name "SingletonSocket" -o -name "lockfile" | xargs rm -f 2>/dev/null');
+      'find /data -name "SingletonLock" -o -name "SingletonCookie" -o -name "SingletonSocket" -o -name "lockfile" | xargs rm -f 2>/dev/null'
     );
 
     console.log('🧹 Lock file dibersihkan.');
@@ -242,7 +242,7 @@ try {
 const client = new Client({
 
     authStrategy: new LocalAuth({
-        dataPath:'./data'
+        dataPath:'/data'
     }),
 
     webVersionCache:{
@@ -452,7 +452,7 @@ client.on('message', async (msg) => {
             `• \`riwayat: selesai\`  → filter Selesai\n` +
             `• \`riwayat: hari ini\` → order hari ini\n\n` +
             `*🔍 Umum:*\n` +
-            `• \`cekorder: ES001\`  → detail order\n` +
+            `• \`cekorder: GS001\`  → detail order\n` +
             `• \`riwayat saya\`     → riwayat pembeli\n` +
             `• \`.close\` / \`.open\` → buka/tutup grup\n` +
 `• \`!\`                → pin pesan`
@@ -785,7 +785,7 @@ client.on('message', async (msg) => {
                 `🕐 Waktu     : ${order.waktuOrder} WIB\n` +
                 `👤 Pembeli   : ${order.pembeliNama}\n` +
                 `✅ Status    : *Selesai*\n\n` +
-                `_Terima kasih sudah berbelanja di Echin Store!_ 🛍️`;
+                `_Terima kasih sudah berbelanja di Genius Store!_ 🛍️`;
             await msg.react('🎉');
             await kirimDM(order.pembeliId, pesanDone);
             return;
