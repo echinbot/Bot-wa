@@ -762,7 +762,8 @@ client.on('message', async (msg) => {
                 `👤 Pembeli   : ${pembeliNama}\n` +
                 `⏳ Status    : *Diproses*\n\n` +
                 `_Pesanan sedang kami proses. Harap tunggu ya!_ 🙏`;
-            await balas(msg, pesanProses);
+            // Notif singkat ke admin di chat (grup/pribadi), detail lengkap ke DM pembeli
+            await balas(msg, `✅ Order *${idOrder}* berhasil dibuat.\n📨 Detail sudah dikirim ke chat pribadi pembeli.`);
             await kirimDM(pembeliId, pesanProses);
             return;
         }
@@ -785,8 +786,9 @@ client.on('message', async (msg) => {
                 `🕐 Waktu     : ${order.waktuOrder} WIB\n` +
                 `👤 Pembeli   : ${order.pembeliNama}\n` +
                 `✅ Status    : *Selesai*\n\n` +
-                `_Terima kasih sudah berbelanja di Genius Store!_ 🛍️`;
-            await balas(msg, pesanDone);
+                `_Terima kasih sudah berbelanja di Echin Store!_ 🛍️`;
+            // Notif singkat ke admin di chat, detail lengkap ke DM pembeli
+            await balas(msg, `✅ Order *${order.id}* ditandai *Selesai*.\n📨 Konfirmasi sudah dikirim ke chat pribadi pembeli.`);
             await kirimDM(order.pembeliId, pesanDone);
             return;
         }
@@ -842,4 +844,3 @@ client.on('message', async (msg) => {
 //  START
 // ─────────────────────────────────────────────
 client.initialize();
-
